@@ -188,7 +188,7 @@ func resourcePagerDutyServiceDependencyRead(d *schema.ResourceData, meta interfa
 	serviceDependency, err := buildServiceDependencyStruct(d)
 	log.Printf("[INFO] Reading PagerDuty dependency %s", serviceDependency.ID)
 
-	if err = findDependencySetState(d.Id(), serviceDependency.DependentService.ID, d, meta); err != nil {
+	if err = findDependencySetState(d.Id(), serviceDependency.DependentService, d, meta); err != nil {
 		return err
 	}
 
@@ -230,13 +230,19 @@ func convertType(s string) string {
 	return s
 }
 
-func findDependencySetState(depID, busServiceID string, d *schema.ResourceData, meta interface{}) error {
+func findDependencySetState(depID string, service *pagerduty.ServiceObj, d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*pagerduty.Client)
 
 	// Pausing to let the PD API sync.
 	time.Sleep(1 * time.Second)
 	retryErr := resource.Retry(30*time.Second, func() *resource.RetryError {
-		if dependencies, _, err := client.ServiceDependencies.GetBusinessServiceDependencies(busServiceID); err != nil {
+		getDependencies := client.ServiceDependencies.GetBusinessServiceDependencies
+
+		if service.Type == "technical_service_reference" {
+			getDependencies = client.ServiceDependencies.GetTechnicalServiceDependencies
+		}
+
+		if dependencies, _, err := getDependencies(service.ID); err != nil {
 			if isErrCode(err, 404) || isErrCode(err, 500) || isErrCode(err, 429) {
 				return resource.RetryableError(err)
 			}
@@ -263,6 +269,8 @@ func findDependencySetState(depID, busServiceID string, d *schema.ResourceData, 
 }
 
 func resourcePagerDutyServiceDependencyImport(d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	client := meta.(*pagerduty.Client)
+
 	ids := strings.Split(d.Id(), ".")
 
 	if len(ids) != 2 {
@@ -270,7 +278,22 @@ func resourcePagerDutyServiceDependencyImport(d *schema.ResourceData, meta inter
 	}
 	sid, id := ids[0], ids[1]
 
-	if err := findDependencySetState(id, sid, d, meta); err != nil {
+	service := pagerduty.ServiceObj{
+		ID: sid,
+	}
+
+	_, _, err := client.BusinessServices.Get(sid)
+	if err != nil {
+		if isErrCode(err, 404) {
+			service.Type = "technical_service_reference"
+		} else {
+			return []*schema.ResourceData{}, err
+		}
+	} else {
+		service.Type = "business_service_reference"
+	}
+
+	if err := findDependencySetState(id, &service, d, meta); err != nil {
 		return []*schema.ResourceData{}, err
 	}
 

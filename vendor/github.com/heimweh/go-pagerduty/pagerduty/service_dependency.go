@@ -64,3 +64,16 @@ func (s *ServiceDependencyService) GetBusinessServiceDependencies(businessServic
 
 	return v, resp, nil
 }
+
+// GetTechnicalServiceDependencies gets all immediate dependencies of a technical service.
+func (s *ServiceDependencyService) GetTechnicalServiceDependencies(technicalServiceID string) (*ListServiceDependencies, *Response, error) {
+	u := fmt.Sprintf("/service_dependencies/technical_services/%s", technicalServiceID)
+	v := new(ListServiceDependencies)
+
+	resp, err := s.client.newRequestDo("GET", u, nil, nil, &v)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return v, resp, nil
+}

@@ -6,4 +6,6 @@ require (
 	github.com/heimweh/go-pagerduty v0.0.0-20200429000711-fdd3a48907e7
 )
 
+replace github.com/heimweh/go-pagerduty v0.0.0-20200429000711-fdd3a48907e7 => github.com/zane-deg/go-pagerduty v0.0.0-20200519000142-b07931078451 // indirect
+
 go 1.13
