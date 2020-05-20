@@ -143,8 +143,14 @@ func resourcePagerDutyServiceDependencyDisassociate(d *schema.ResourceData, meta
 
 	log.Printf("[INFO] Disassociating PagerDuty dependency %s", dependency.DependentService.ID)
 
+	getDependencies := client.ServiceDependencies.GetBusinessServiceDependencies
+
+	if dependency.DependentService.Type == "service" {
+		getDependencies = client.ServiceDependencies.GetTechnicalServiceDependencies
+	}
+
 	// listServiceRelationships by calling get dependencies using the serviceDependency.DependentService.ID
-	depResp, _, err := client.ServiceDependencies.GetBusinessServiceDependencies(dependency.DependentService.ID)
+	depResp, _, err := getDependencies(dependency.DependentService.ID)
 	if err != nil {
 		return err
 	}
@@ -238,7 +244,7 @@ func findDependencySetState(depID string, service *pagerduty.ServiceObj, d *sche
 	retryErr := resource.Retry(30*time.Second, func() *resource.RetryError {
 		getDependencies := client.ServiceDependencies.GetBusinessServiceDependencies
 
-		if service.Type == "technical_service_reference" {
+		if service.Type == "service" {
 			getDependencies = client.ServiceDependencies.GetTechnicalServiceDependencies
 		}
 
@@ -285,12 +291,12 @@ func resourcePagerDutyServiceDependencyImport(d *schema.ResourceData, meta inter
 	_, _, err := client.BusinessServices.Get(sid)
 	if err != nil {
 		if isErrCode(err, 404) {
-			service.Type = "technical_service_reference"
+			service.Type = "service"
 		} else {
 			return []*schema.ResourceData{}, err
 		}
 	} else {
-		service.Type = "business_service_reference"
+		service.Type = "business_service"
 	}
 
 	if err := findDependencySetState(id, &service, d, meta); err != nil {
